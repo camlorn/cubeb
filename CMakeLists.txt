@@ -14,7 +14,7 @@ option(CUBEB_USE_AUDIOQUEUE "Use Audioqueue Backend" OFF)
 #Windows.
 option(CUBEB_USE_WASAPI "Use Wasapi Backend" ON)
 option(CUBEB_USE_WINMM "Use Winmm Backend" ON)
-option(CUBEB_USE_DIRECTSOUND "Use DirectSound Backend" ON)
+option(CUBEB_USE_DIRECTSOUND "Use DirectSound Backend" OFF)
 
 #BSD.
 option(CUBEB_USE_SNDIO "Use Sndio Backend" OFF)
@@ -27,6 +27,8 @@ OPTION(CUBEB_USE_AUDIOTRACK "Use Audiotrack Backend" OFF)
 
 #Build the Cubeb sources variable.
 SET(CUBEB_SOURCES src/cubeb.c src/speex/resample.c)
+#Speex:
+SET(CUBEB_DEFINES "OUTSIDE_SPEEX;RANDOM_PREFIX=cubeb;FLOATING_POINT;EXPORT=")
 
 #Each option has one source file.
 if(${CUBEB_USE_PULSE})
