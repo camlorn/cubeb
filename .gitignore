@@ -1,3 +1,4 @@
+build/
 *.lo
 *.o
 *.swp
