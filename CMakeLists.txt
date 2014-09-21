@@ -4,9 +4,11 @@ project(cubeb)
 
 include(CheckIncludeFile)
 include(CheckIncludeFiles)
+include(FindPkgConfig)
 
 #these defaults are overridden below.
 #Unless something toggles it on, they're all off.
+SET(CUBEB_ALSA_DEFAULT OFF)
 SET(CUBEB_PULSE_DEFAULT OFF)
 SET(CUBEB_JACK_DEFAULT OFF)
 SET(CUBEB_AUDIOUNIT_DEFAULT OFF)
@@ -38,7 +40,23 @@ set(CUBEB_WASAPI_DEFAULT ON)
 endif()
 endif()
 
+CHECK_INCLUDE_FILE(pulse/pulseaudio.h PULSE_FOUND)
+if(${PULSE_FOUND})
+SET(CUBEB_PULSE_DEFAULT ON)
+endif()
 
+CHECK_INCLUDE_FILE(jack/jack.h JACK_FOUND)
+if(${JACK_FOUND})
+set(CUBEB_JACK_DEFAULT ON)
+endif()
+
+#CMake gives us a module for this one.
+find_package(ALSA)
+if(${ALSA_FOUND})
+SET(CUBEB_ALSA_DEFAULT ON)
+endif()
+
+option(CUBEB_USE_ALSA "Use Alsa backend" ${CUBEB_ALSA_DEFAULT})
 option(CUBEB_USE_PULSE "Use Pulseaudio Backend" ${CUBEB_PULSE_DEFAULT})
 option(CUBEB_USE_JACK "Use Jack Backend" ${CUBEB_JACK_DEFAULT})
 option(CUBEB_USE_AUDIOUNIT "Use Audio Unit Backend" ${CUBEB_AUDIOUNIT_DEFAULT})
@@ -62,9 +80,15 @@ SET(CUBEB_SOURCES src/cubeb.c src/speex/resample.c src/cubeb_resampler.cpp)
 SET(CUBEB_DEFINES "OUTSIDE_SPEEX;RANDOM_PREFIX=cubeb_speex;FLOATING_POINT;EXPORT=")
 
 #Each option has one source file.
+if(${CUBEB_USE_ALSA})
+SET(CUBEB_DEFINES"${CUBEB_DEFINES};USE_ALSA")
+SET(CUBEB_SOURCES ${CUBEB_SOURCES} src/cubeb_alsa.c)
+endif()
 if(${CUBEB_USE_PULSE})
 SET(CUBEB_DEFINES "${CUBEB_DEFINES};USE_PULSE")
 SET(CUBEB_SOURCES ${CUBEB_SOURCES} src/cubeb_pulse.c)
+#this is probably not needed on newer machines.
+SET(CUBEB_ADDITIONAL_LIBRARIES ${CUBEB_ADDITIONAL_LIBRARIES} dl)
 endif()
 if(${CUBEB_USE_JACK})
 SET(CUBEB_DEFINES "${CUBEB_DEFINES};USE_JACK")
@@ -108,12 +132,17 @@ SET(CUBEB_DEFINES "${CUBEB_DEFINES};USE_AUDIOTRACK")
 SET(CUBEB_SOURCES ${CUBEB_SOURCES} src/cubeb_audiotrack.c)
 endif()
 
+find_package(Threads) #magically makes threads work and sets CMAKE_THREAD_LINBS_INIT
+if(${CMAKE_COMPILER_IS_GNUCC})
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
+endif()
+
 #the Cubeb library.
 add_library(cubeb ${CUBEB_LIBRARY_TYPE} ${CUBEB_SOURCES})
 #Cubeb-specific preprocessor macros.
 set_target_properties(cubeb PROPERTIES COMPILE_DEFINITIONS "${CUBEB_DEFINES}")
-if(${CUBEB_ADDITIONAL_LIBRARIES})
-target_link_libraries(cubeb ${CUBEB_ADDITIONAL_LIBRARIES})
+if(${CUBEB_ADDITIONAL_LIBRARIES} OR ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(cubeb ${CUBEB_ADDITIONAL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
 #add its include dir.
@@ -123,3 +152,16 @@ include_directories("${CMAKE_SOURCE_DIR}/include" "${CMAKE_BINARY_DIR}/include")
 #make cubeb-stdint.h.
 #TODO: this should do more checking.
 file(WRITE "${CMAKE_BINARY_DIR}/include/cubeb/cubeb-stdint.h" "#include <stdint.h>")
+
+#add the tests
+add_executable(test_audio test/test_audio.cpp)
+target_link_libraries(test_audio cubeb)
+
+add_executable(test_latency test/test_latency.cpp)
+target_link_libraries(test_latency cubeb)
+
+add_executable(test_sanity test/test_sanity.cpp)
+target_link_libraries(test_sanity cubeb)
+
+add_executable(test_tone test/test_tone.cpp)
+target_link_libraries(test_tone cubeb)
