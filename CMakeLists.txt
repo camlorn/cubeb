@@ -23,11 +23,7 @@ SET(CUBEB_AUDIOTRACK_DEFAULT OFF)
 #Whether to build static or shared library.
 SET(CUBEB_LIBRARY_TYPE STATIC)
 
-#The following are not platform-specific because it is possible that we may wish to cross-compile in future.
-
-#If we have windows.h, turn on at least MME and do the further windows checks.
-CHECK_INCLUDE_FILE(windows.h HAVE_WINDOWS_H)
-if(${HAVE_WINDOWS_H})
+if(${WIN32})
 set(${CUBEB_WINMM_DEFAULT} ON)
 CHECK_INCLUDE_FILE(dsound.h HAVE_DSOUND_H)
 if(${HAVE_DSOUND_H})
@@ -40,14 +36,16 @@ set(CUBEB_WASAPI_DEFAULT ON)
 endif()
 endif()
 
-CHECK_INCLUDE_FILE(pulse/pulseaudio.h PULSE_FOUND)
+if(${PKG_CONFIG_FOUND})
+PKG_CHECK_MODULES(PULSE libpulse>=0.9.16)
 if(${PULSE_FOUND})
 SET(CUBEB_PULSE_DEFAULT ON)
 endif()
 
-CHECK_INCLUDE_FILE(jack/jack.h JACK_FOUND)
+PKG_CHECK_MODULES(JACK jack)
 if(${JACK_FOUND})
 set(CUBEB_JACK_DEFAULT ON)
+endif()
 endif()
 
 #CMake gives us a module for this one.
@@ -83,20 +81,18 @@ SET(CUBEB_DEFINES "OUTSIDE_SPEEX;RANDOM_PREFIX=cubeb_speex;FLOATING_POINT;EXPORT
 if(${CUBEB_USE_ALSA})
 SET(CUBEB_DEFINES"${CUBEB_DEFINES};USE_ALSA")
 SET(CUBEB_SOURCES ${CUBEB_SOURCES} src/cubeb_alsa.c)
+SET(CUBEB_ADDITIONAL_LIBRARIES${CUBEB_ADDITIONAL_LIBRARIES} ${ALSA_LIBRARIES})
 endif()
 if(${CUBEB_USE_PULSE})
 SET(CUBEB_DEFINES "${CUBEB_DEFINES};USE_PULSE")
 SET(CUBEB_SOURCES ${CUBEB_SOURCES} src/cubeb_pulse.c)
 #this is probably not needed on newer machines.
-SET(CUBEB_ADDITIONAL_LIBRARIES ${CUBEB_ADDITIONAL_LIBRARIES} dl)
+SET(CUBEB_ADDITIONAL_LIBRARIES ${CUBEB_ADDITIONAL_LIBRARIES} ${PULSE_LIBRARIES} dl)
 endif()
 if(${CUBEB_USE_JACK})
 SET(CUBEB_DEFINES "${CUBEB_DEFINES};USE_JACK")
 SET(CUBEB_SOURCES ${CUBEB_SOURCES} src/cubeb_jack.cpp)
-endif()
-if(${CUBEB_USE_ALSA})
-SET(CUBEB_DEFINES "${CUBEB_DEFINES};USE_ALSA")
-SET(CUBEB_SOURCES ${CUBEB_SOURCES} src/cubeb_alsa.c)
+SET(CUBEB_ADDITIONAL_LIBRARIES ${CUBEB_ADDITIONAL_LIBRARIES} ${JACK_LIBRARIES})
 endif()
 if(${CUBEB_USE_AUDIOUNIT})
 SET(CUBEB_DEFINES "${CUBEB_DEFINES};USE_AUDIOUNIT")
@@ -141,7 +137,7 @@ endif()
 add_library(cubeb ${CUBEB_LIBRARY_TYPE} ${CUBEB_SOURCES})
 #Cubeb-specific preprocessor macros.
 set_target_properties(cubeb PROPERTIES COMPILE_DEFINITIONS "${CUBEB_DEFINES}")
-if(${CUBEB_ADDITIONAL_LIBRARIES} OR ${CMAKE_THREAD_LIBS_INIT})
+if("${CUBEB_ADDITIONAL_LIBRARIES}" OR "${CMAKE_THREAD_LIBS_INIT}")
 target_link_libraries(cubeb ${CUBEB_ADDITIONAL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
@@ -155,13 +151,13 @@ file(WRITE "${CMAKE_BINARY_DIR}/include/cubeb/cubeb-stdint.h" "#include <stdint.
 
 #add the tests
 add_executable(test_audio test/test_audio.cpp)
-target_link_libraries(test_audio cubeb)
+target_link_libraries(test_audio cubeb ${CUBEB_ADDITIONAL_LIBRARIES})
 
 add_executable(test_latency test/test_latency.cpp)
-target_link_libraries(test_latency cubeb)
+target_link_libraries(test_latency cubeb ${CUBEB_ADDITIONAL_LIBRARIES})
 
 add_executable(test_sanity test/test_sanity.cpp)
-target_link_libraries(test_sanity cubeb)
+target_link_libraries(test_sanity cubeb ${CUBEB_ADDITIONAL_LIBRARIES})
 
 add_executable(test_tone test/test_tone.cpp)
-target_link_libraries(test_tone cubeb)
+target_link_libraries(test_tone cubeb ${CUBEB_ADDITIONAL_LIBRARIES})
